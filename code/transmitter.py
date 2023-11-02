@@ -1,4 +1,7 @@
 import numpy as np
+import upsampler
+import convolution
+from scipy import signal
 
 
 sampling_rate = 1  # sample / second; (is normalized)
@@ -36,8 +39,6 @@ def GetSqrtRaisedCosineDTFT(w):
 
     return H
 
-    # k = np.linspace(0, (n_samples - 1), num=n_samples)
-
 
 # Step 2: find the sqrt_raised_cosine impulse_response_function given the DFT
 #
@@ -45,23 +46,255 @@ def GetSqrtRaisedCosineDTFT(w):
 #                         = inverseDFT(H_sqrt_raised_cosine(e^jw)), where w = (2*pi*k)/N
 #                                                                   where k = 0, 1, 2, ... N-1
 # NOTE: second half of inverseDFT samples must be shifted all the way to the beginning
-def GetSqrtRaisedCosineDFT(n_samples):
-    k = np.linspace(
-        (n_samples / -2), ((n_samples / 2) - 1), num=n_samples
-    )
+def GetSqrtRaisedCosineImpulseResponseFromIFFT(n_samples):
+    k = np.linspace(-1 * (n_samples / 2), ((n_samples / 2) - 1), num=n_samples)
     w = (2 * np.pi * k) / n_samples
-    ifft = np.fft.ifft(GetSqrtRaisedCosineDTFT(w))
-    return np.fft.ifftshift(ifft)
+    # IMPORTANT: in order to take the IDFT, a DFT must be passed. The DFT is related to
+    #            the DTFT in this case by a shift. So, in the DTFT the response is from
+    #            [(3*pi/8), (-3*pi/8)], but if this was a DFT it'd be from
+    #            [-pi, (-pi + 3*pi/8)] and from [(pi - 3*pi/8), pi]. To do this
+    #            manipulation `np.fft.fftshift(...)` is used.
+    ifft = np.fft.ifft(np.fft.fftshift(GetSqrtRaisedCosineDTFT(w)))
+    return np.fft.ifftshift(ifft), w
 
 
 # Step 3: truncate the infinite impulse response h so that it can be an FIR filter
 def GetFIR():
-    filter_sample_count = 32
-    return GetSqrtRaisedCosineDFT(filter_sample_count)
+    test_n_samples = 32
+    test_h, _ = GetSqrtRaisedCosineImpulseResponseFromIFFT(test_n_samples)
+    return test_h.real
+
+
+# Step 4: shape the input signal using the raised cosine pulse
+def ApplyPulseShaping(input_signal):
+    # first upsample the input_signal by a factor of 4
+    upsampled_input = upsampler.UpSample(input_signal, sampling_period)
+    fir = GetFIR()
+    pulses_0 = convolution.Convolve_FiniteSequences(upsampled_input[0:, 0], fir)
+    pulses_1 = convolution.Convolve_FiniteSequences(upsampled_input[0:, 1], fir)
+    pulses = np.array([pulses_0, pulses_1])
+    return pulses
+
+
+# Step 5: upsample and filter
+def UpSample20WithLPF(input_signals):
+    upsample_n = 20
+
+    upsampled_signals = list()
+    for input_signal in input_signals:
+        upsampled_signal = upsampler.UpSample(input_signal, upsample_n)
+        upsampled_signals.append(upsampled_signal)
+
+    upsampled_signals = np.array(upsampled_signals)
+
+    pre_upsample_cutoff = 3 * np.pi / 8
+    cutoff = pre_upsample_cutoff / upsample_n
+    passband_desired_gain = upsample_n
+    stopband_desired_gain = 0
+    h_lpf_length = 71
+    h = signal.firls(
+        h_lpf_length,
+        [0, 1.1 * cutoff, 1.1 * cutoff, 0.5],
+        [
+            passband_desired_gain,
+            passband_desired_gain,
+            stopband_desired_gain,
+            stopband_desired_gain,
+        ],
+        fs=1,
+    )
+
+    filtered_signals = list()
+    for upsampled_signal in upsampled_signals:
+        filtered_signal = convolution.Convolve_FiniteSequences(upsampled_signal, h)
+        filtered_signals.append(filtered_signal)
+
+    filtered_signals = np.array(filtered_signals)
+    return filtered_signals
+
+
+def Transmit(input_signal):
+    carrier_frequency = 0.44 * np.pi  # radians/sample
+
+    pulses = UpSample20WithLPF(ApplyPulseShaping(input_signal))
+
+    n = np.arange(pulses[0].shape[-1])
+    modulated_carrier_signal = pulses[0] * np.cos(carrier_frequency * n) + pulses[
+        1
+    ] * np.sin(carrier_frequency * n)
+    return modulated_carrier_signal
 
 
 # Quick and dirty tests
 import matplotlib.pyplot as plt
+
+
+# A method to return the random bit sequence so that tests are repeatable.
+def TEST_HELPER_GetRandomBitSequence():
+    return np.array(
+        [
+            [-1, 1],
+            [0, 0],
+            [0, 0],
+            [0, 0],
+            [1, -1],
+            [0, 0],
+            [0, 0],
+            [0, 0],
+            [1, 1],
+            [0, 0],
+            [0, 0],
+            [0, 0],
+            [1, -1],
+            [0, 0],
+            [0, 0],
+            [0, 0],
+            [1, -1],
+            [0, 0],
+            [0, 0],
+            [0, 0],
+            [1, 1],
+            [0, 0],
+            [0, 0],
+            [0, 0],
+            [1, -1],
+            [0, 0],
+            [0, 0],
+            [0, 0],
+            [1, 1],
+            [0, 0],
+            [0, 0],
+            [0, 0],
+            [1, -1],
+            [0, 0],
+            [0, 0],
+            [0, 0],
+            [1, 1],
+            [0, 0],
+            [0, 0],
+            [0, 0],
+            [-1, 1],
+            [0, 0],
+            [0, 0],
+            [0, 0],
+            [1, -1],
+            [0, 0],
+            [0, 0],
+            [0, 0],
+            [1, 1],
+            [0, 0],
+            [0, 0],
+            [0, 0],
+            [1, -1],
+            [0, 0],
+            [0, 0],
+            [0, 0],
+            [1, -1],
+            [0, 0],
+            [0, 0],
+            [0, 0],
+            [1, 1],
+            [0, 0],
+            [0, 0],
+            [0, 0],
+            [1, -1],
+            [0, 0],
+            [0, 0],
+            [0, 0],
+            [1, 1],
+            [0, 0],
+            [0, 0],
+            [0, 0],
+            [1, -1],
+            [0, 0],
+            [0, 0],
+            [0, 0],
+            [1, 1],
+            [0, 0],
+            [0, 0],
+            [0, 0],
+            [-1, 1],
+            [0, 0],
+            [0, 0],
+            [0, 0],
+            [1, -1],
+            [0, 0],
+            [0, 0],
+            [0, 0],
+            [1, 1],
+            [0, 0],
+            [0, 0],
+            [0, 0],
+            [1, -1],
+            [0, 0],
+            [0, 0],
+            [0, 0],
+            [1, -1],
+            [0, 0],
+            [0, 0],
+            [0, 0],
+            [1, 1],
+            [0, 0],
+            [0, 0],
+            [0, 0],
+            [1, -1],
+            [0, 0],
+            [0, 0],
+            [0, 0],
+            [1, 1],
+            [0, 0],
+            [0, 0],
+            [0, 0],
+            [1, -1],
+            [0, 0],
+            [0, 0],
+            [0, 0],
+            [1, 1],
+            [0, 0],
+            [0, 0],
+            [0, 0],
+            [-1, 1],
+            [0, 0],
+            [0, 0],
+            [0, 0],
+            [1, -1],
+            [0, 0],
+            [0, 0],
+            [0, 0],
+            [1, 1],
+            [0, 0],
+            [0, 0],
+            [0, 0],
+            [1, -1],
+            [0, 0],
+            [0, 0],
+            [0, 0],
+            [1, -1],
+            [0, 0],
+            [0, 0],
+            [0, 0],
+            [1, 1],
+            [0, 0],
+            [0, 0],
+            [0, 0],
+            [1, -1],
+            [0, 0],
+            [0, 0],
+            [0, 0],
+            [1, 1],
+            [0, 0],
+            [0, 0],
+            [0, 0],
+            [1, -1],
+            [0, 0],
+            [0, 0],
+            [0, 0],
+            [1, 1],
+            [0, 0],
+            [0, 0],
+            [0, 0],
+        ]
+    )
 
 
 def TEST_PlotHDTFT():
@@ -77,28 +310,127 @@ def TEST_PlotHDTFT():
     plt.show()
 
 
-def TEST_PlotImpulseResponseFunction():
-    test_n_samples = 100
+def TEST_PlotHDFT():
+    test_n_samples = 10000
     k = np.linspace(
         (test_n_samples / -2), ((test_n_samples / 2) - 1), num=test_n_samples
     )
-    test_h = GetSqrtRaisedCosineDFT(test_n_samples)
+    w = (2 * np.pi * k) / test_n_samples
 
-    plt.plot(k, test_h.real, ".-")
-    plt.plot(k, test_h.imag, ".-") # imaginary parts should be zero 
+    test_H = np.fft.fftshift(GetSqrtRaisedCosineDTFT(w))
+
+    plt.plot(w, test_H, ".-")
     plt.show()
 
+
+def TEST_PlotImpulseResponseFunction():
+    test_n_samples = 100
+    test_h, w = GetSqrtRaisedCosineImpulseResponseFromIFFT(test_n_samples)
+
+    plt.plot(w, test_h.real, ".-")
+    plt.plot(w, test_h.imag, ".-")  # imaginary parts should be zero
+    plt.show()
+
+
 def TEST_PlotFIR():
-    test_n_samples = 32
-    k = np.linspace(0, (test_n_samples - 1), num=test_n_samples)
     test_h_fir = GetFIR()
 
-    plt.plot(k, test_h_fir.real, ".:")
+    plt.plot(np.arange(len(test_h_fir)), test_h_fir, ".:")
+    plt.show()
+
+
+def TEST_ApplyPulseShaping():
+    pulses = ApplyPulseShaping(TEST_HELPER_GetRandomBitSequence())
+
+    k = np.linspace(0, len(pulses[0]), len(pulses[0]))
+    figure, axis = plt.subplots(2)
+    axis[0].plot(k, pulses[0], ".:")
+    axis[0].set_title("b_1[n] versus n")
+    axis[1].plot(k, pulses[1], ".:")
+    axis[1].set_title("b_2[n] versus n")
+    plt.show()
+
+
+def TEST_ApplyPulseShapingWithUpSampling():
+    pulses = ApplyPulseShaping(TEST_HELPER_GetRandomBitSequence())
+    # PLOT NORMAL FFT
+    fig, axis = plt.subplots(2)
+    norm_fft = 20 * np.log10(abs(np.fft.fft(pulses[0])))
+    freqs = np.fft.fftfreq(pulses[0].shape[-1])
+    w = (2 * np.pi) * freqs
+    axis[0].semilogy(w, norm_fft, ".:")
+    axis[0].set_title("b_1 Frequency Response")
+
+    upsample_n = 20
+    pulses_up_0 = upsampler.UpSample(pulses[0], upsample_n)
+    pulses_up_1 = upsampler.UpSample(pulses[1], upsample_n)
+    pulses = np.array([pulses_up_0, pulses_up_1])
+
+    # PLOT UPSAMPLED FFT
+    upsampled_fft = 20 * np.log10(abs(np.fft.fft(pulses[0])))
+    freqs = np.fft.fftfreq(pulses[0].shape[-1])
+    w = (2 * np.pi) * np.fft.fftshift(freqs)
+    axis[1].semilogy(w, upsampled_fft.real, ".:")
+    axis[1].set_title("b_1 Upsampled by 20 Frequency Response")
+
+    fig.supylabel("DFT Magnitude (dB)")
+    fig.supxlabel("frequency (radians / sample)")
+    plt.show()
+
+
+def TEST_PlotDFTFindUpSamplingLPF():
+    upsample_n = 20
+    pre_upsample_cutoff = 3 * np.pi / 8
+
+    cutoff = pre_upsample_cutoff / upsample_n
+
+    passband_desired_gain = 20
+    stopband_desired_gain = 0
+    h_lpf_length = 71
+    h = signal.firls(
+        h_lpf_length,
+        [0, 1.1 * cutoff, 1.1 * cutoff, 0.5],
+        [
+            passband_desired_gain,
+            passband_desired_gain,
+            stopband_desired_gain,
+            stopband_desired_gain,
+        ],
+        fs=1,
+    )
+    response = np.fft.fft(h)
+    freq = np.fft.fftshift(np.fft.fftfreq(response.shape[-1]))
+    response = np.fft.fftshift(response)
+    plt.semilogy(freq, abs(response))
+    plt.show()
+
+
+def TEST_PlotUpSampledPulses():
+    pulses = ApplyPulseShaping(TEST_HELPER_GetRandomBitSequence())
+    pulses = UpSample20WithLPF(pulses)
+
+    fig, axis = plt.subplots(2)
+
+    axis[0].plot(np.arange(pulses[0].shape[-1]), pulses[0], ",-")
+    axis[1].plot(np.arange(pulses[1].shape[-1]), pulses[1], ",-")
+
+    plt.show()
+
+
+def TEST_PlotTransmitSignal():
+    transmit_signal = Transmit(TEST_HELPER_GetRandomBitSequence())
+
+    plt.plot(np.arange(len(transmit_signal)), transmit_signal)
     plt.show()
 
 
 if __name__ == "__main__":
-    # TEST_PlotHDTFT()
-    # TEST_PlotImpulseResponseFunction()
+    TEST_PlotHDTFT()
+    TEST_PlotHDFT()
+    TEST_PlotImpulseResponseFunction()
     TEST_PlotFIR()
-
+    TEST_ApplyPulseShaping()
+    TEST_ApplyPulseShapingWithUpSampling()
+    TEST_PlotDFTFindUpSamplingLPF()
+    TEST_PlotUpSampledPulses()
+    TEST_PlotTransmitSignal()
