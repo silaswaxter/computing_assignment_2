@@ -46,13 +46,16 @@ import matplotlib.pyplot as plt
 if __name__ == "__main__":
     test_channel = SimulatedAnalogChannel(gaussian_noise_constant_gain=0.25)
 
-    x = np.linspace(0, 4 * np.pi, 100)
+    x = np.linspace(0, 2 * np.pi, 100)
     test_trans_sig = np.sin(x)
 
     test_noise_sig = test_channel.GetGaussianNoise(len(test_trans_sig))
 
     test_rec_sig = test_channel.ReceivedSignal(test_trans_sig, test_noise_sig)
 
-    plt.plot(x, test_trans_sig, "s-")
-    plt.plot(x, test_noise_sig, "o:", x, test_rec_sig, "o:")
+    plt.plot(x, test_trans_sig, "s-", label="sin[2*pi*n]")
+    plt.plot(x, test_noise_sig, "o:", label="gaussian noise")
+    plt.plot(x, test_rec_sig, "o:", label="sum of other signals")
+    plt.legend()
+    plt.xlabel("n (radians)")
     plt.show()

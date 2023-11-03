@@ -297,6 +297,12 @@ def TEST_HELPER_GetRandomBitSequence():
     )
 
 
+def TEST_HELPER_GetRandomBitSequenceTruncated():
+    test_data = TEST_HELPER_GetRandomBitSequence()
+    upper_index = int(np.floor(len(test_data) / 4))
+    return test_data[0 : upper_index]
+
+
 def TEST_PlotHDTFT():
     test_n_samples = 10000
     k = np.linspace(
@@ -307,6 +313,9 @@ def TEST_PlotHDTFT():
     test_H = GetSqrtRaisedCosineDTFT(w)
 
     plt.plot(w, test_H, ".-")
+    plt.xlabel("Frequency in radians/sample")
+    plt.ylabel("Magnitude")
+    plt.title("Frequency Response of Root Raised Cosine Filter")
     plt.show()
 
 
@@ -336,18 +345,23 @@ def TEST_PlotFIR():
     test_h_fir = GetFIR()
 
     plt.plot(np.arange(len(test_h_fir)), test_h_fir, ".:")
+    plt.xlabel("n")
+    plt.ylabel("h[n]")
+    plt.title("Impulse Response Sequence of Root Raised Cosine Filter")
     plt.show()
 
 
 def TEST_ApplyPulseShaping():
-    pulses = ApplyPulseShaping(TEST_HELPER_GetRandomBitSequence())
+    pulses = ApplyPulseShaping(TEST_HELPER_GetRandomBitSequenceTruncated())
 
     k = np.linspace(0, len(pulses[0]), len(pulses[0]))
-    figure, axis = plt.subplots(2)
+    fig, axis = plt.subplots(2)
     axis[0].plot(k, pulses[0], ".:")
-    axis[0].set_title("b_1[n] versus n")
+    axis[0].set_title("b_1[n] Pulse-Shaped vs. n")
     axis[1].plot(k, pulses[1], ".:")
-    axis[1].set_title("b_2[n] versus n")
+    axis[1].set_title("b_2[n] Pulse-Shaped vs. n")
+
+    fig.supxlabel("n")
     plt.show()
 
 
@@ -402,35 +416,50 @@ def TEST_PlotDFTFindUpSamplingLPF():
     freq = np.fft.fftshift(np.fft.fftfreq(response.shape[-1]))
     response = np.fft.fftshift(response)
     plt.semilogy(freq, abs(response))
+    plt.ylabel("DFT Magnitude")
+    plt.xlabel("frequency (radians / sample)")
+    plt.title("Custom LPF Frequency Response")
     plt.show()
 
 
 def TEST_PlotUpSampledPulses():
-    pulses = ApplyPulseShaping(TEST_HELPER_GetRandomBitSequence())
+    pulses = ApplyPulseShaping(TEST_HELPER_GetRandomBitSequenceTruncated())
     pulses = UpSample20WithLPF(pulses)
 
     fig, axis = plt.subplots(2)
 
     axis[0].plot(np.arange(pulses[0].shape[-1]), pulses[0], ",-")
     axis[1].plot(np.arange(pulses[1].shape[-1]), pulses[1], ",-")
+    axis[0].set_title("b_1[n] After Upsampling by 20")
+    axis[1].set_title("b_2[n] After Upsampling by 20")
 
+    fig.supxlabel("n")
     plt.show()
 
 
 def TEST_PlotTransmitSignal():
-    transmit_signal = Transmit(TEST_HELPER_GetRandomBitSequence())
+    transmit_signal = Transmit(TEST_HELPER_GetRandomBitSequenceTruncated())
 
-    plt.plot(np.arange(len(transmit_signal)), transmit_signal)
+
+    carrier_frequency = 0.44 * np.pi  # radians/sample
+    n = np.arange(np.floor(len(transmit_signal)/10))
+    carrier_signal = np.cos(carrier_frequency * n) + np.sin(carrier_frequency * n)
+
+    plt.plot(n, transmit_signal[0:n.shape[-1]], ",-", label="Transmitted Signal (With Modulation)")
+    plt.plot(n, carrier_signal, ",-", label="Carrier Signal (No Modulation)")
+    plt.legend()
+
+    plt.xlabel("n")
     plt.show()
 
 
 if __name__ == "__main__":
-    TEST_PlotHDTFT()
-    TEST_PlotHDFT()
-    TEST_PlotImpulseResponseFunction()
-    TEST_PlotFIR()
-    TEST_ApplyPulseShaping()
+    # TEST_PlotHDTFT()
+    # TEST_PlotHDFT()
+    # TEST_PlotImpulseResponseFunction()
+    # TEST_PlotFIR()
+    # TEST_ApplyPulseShaping()
     TEST_ApplyPulseShapingWithUpSampling()
-    TEST_PlotDFTFindUpSamplingLPF()
-    TEST_PlotUpSampledPulses()
+    # TEST_PlotDFTFindUpSamplingLPF()
+    # TEST_PlotUpSampledPulses()
     TEST_PlotTransmitSignal()
