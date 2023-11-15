@@ -89,12 +89,16 @@ def UpSample20WithLPF(input_signals):
 
     pre_upsample_cutoff = 3 * np.pi / 8
     cutoff = pre_upsample_cutoff / upsample_n
+    # the cutoff values here are calculated for frequencies in terms of rads/sample, but
+    # scipy uses 1/sample; correct for that--theres probably a more elegant solution.
+    cutoff /= 2 * np.pi
+    print(cutoff)
     passband_desired_gain = upsample_n
     stopband_desired_gain = 0
     h_lpf_length = 71
     h = signal.firls(
         h_lpf_length,
-        [0, 1.1 * cutoff, 1.1 * cutoff, 0.5],
+        [0, cutoff, cutoff, 0.5],
         [
             passband_desired_gain,
             passband_desired_gain,
@@ -110,13 +114,13 @@ def UpSample20WithLPF(input_signals):
         filtered_signals.append(filtered_signal)
 
     filtered_signals = np.array(filtered_signals)
-    return filtered_signals
+    return filtered_signals, h
 
 
 def Transmit(input_signal):
     carrier_frequency = 0.44 * np.pi  # radians/sample
 
-    pulses = UpSample20WithLPF(ApplyPulseShaping(input_signal))
+    pulses, _ = UpSample20WithLPF(ApplyPulseShaping(input_signal))
 
     n = np.arange(pulses[0].shape[-1])
     modulated_carrier_signal = pulses[0] * np.cos(carrier_frequency * n) + pulses[
@@ -300,7 +304,7 @@ def TEST_HELPER_GetRandomBitSequence():
 def TEST_HELPER_GetRandomBitSequenceTruncated():
     test_data = TEST_HELPER_GetRandomBitSequence()
     upper_index = int(np.floor(len(test_data) / 4))
-    return test_data[0 : upper_index]
+    return test_data[0:upper_index]
 
 
 def TEST_PlotHDTFT():
@@ -393,29 +397,14 @@ def TEST_ApplyPulseShapingWithUpSampling():
 
 
 def TEST_PlotDFTFindUpSamplingLPF():
-    upsample_n = 20
-    pre_upsample_cutoff = 3 * np.pi / 8
+    pulses = ApplyPulseShaping(TEST_HELPER_GetRandomBitSequenceTruncated())
+    pulses, h = UpSample20WithLPF(pulses)
 
-    cutoff = pre_upsample_cutoff / upsample_n
-
-    passband_desired_gain = 20
-    stopband_desired_gain = 0
-    h_lpf_length = 71
-    h = signal.firls(
-        h_lpf_length,
-        [0, 1.1 * cutoff, 1.1 * cutoff, 0.5],
-        [
-            passband_desired_gain,
-            passband_desired_gain,
-            stopband_desired_gain,
-            stopband_desired_gain,
-        ],
-        fs=1,
-    )
     response = np.fft.fft(h)
     freq = np.fft.fftshift(np.fft.fftfreq(response.shape[-1]))
     response = np.fft.fftshift(response)
-    plt.semilogy(freq, abs(response))
+    w = 2 * np.pi * freq
+    plt.semilogy(w, abs(response))
     plt.ylabel("DFT Magnitude")
     plt.xlabel("frequency (radians / sample)")
     plt.title("Custom LPF Frequency Response")
@@ -437,15 +426,34 @@ def TEST_PlotUpSampledPulses():
     plt.show()
 
 
+def TEST_PlotDFTMModulationSignal():
+    pulses = ApplyPulseShaping(TEST_HELPER_GetRandomBitSequenceTruncated())
+    pulses, _ = UpSample20WithLPF(pulses)
+
+    response = np.fft.fft(pulses[0])
+    freq = np.fft.fftshift(np.fft.fftfreq(response.shape[-1]))
+    w = 2 * np.pi * freq
+    response = np.fft.fftshift(response)
+    plt.semilogy(w, abs(response))
+    plt.ylabel("DFT Magnitude")
+    plt.xlabel("frequency (radians / sample)")
+    plt.title("")
+    plt.show()
+
+
 def TEST_PlotTransmitSignal():
     transmit_signal = Transmit(TEST_HELPER_GetRandomBitSequenceTruncated())
 
-
     carrier_frequency = 0.44 * np.pi  # radians/sample
-    n = np.arange(np.floor(len(transmit_signal)/10))
+    n = np.arange(np.floor(len(transmit_signal) / 10))
     carrier_signal = np.cos(carrier_frequency * n) + np.sin(carrier_frequency * n)
 
-    plt.plot(n, transmit_signal[0:n.shape[-1]], ",-", label="Transmitted Signal (With Modulation)")
+    plt.plot(
+        n,
+        transmit_signal[0 : n.shape[-1]],
+        ",-",
+        label="Transmitted Signal (With Modulation)",
+    )
     plt.plot(n, carrier_signal, ",-", label="Carrier Signal (No Modulation)")
     plt.legend()
 
@@ -459,7 +467,8 @@ if __name__ == "__main__":
     # TEST_PlotImpulseResponseFunction()
     # TEST_PlotFIR()
     # TEST_ApplyPulseShaping()
-    TEST_ApplyPulseShapingWithUpSampling()
-    # TEST_PlotDFTFindUpSamplingLPF()
+    # TEST_ApplyPulseShapingWithUpSampling()
+    TEST_PlotDFTFindUpSamplingLPF()
     # TEST_PlotUpSampledPulses()
-    TEST_PlotTransmitSignal()
+    # TEST_PlotTransmitSignal()
+    TEST_PlotDFTMModulationSignal()

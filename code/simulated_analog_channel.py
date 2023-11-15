@@ -1,5 +1,7 @@
 import numpy as np
 
+import transmitter
+
 
 class SimulatedAnalogChannel:
     def __init__(self, gaussian_noise_constant_gain=1.0, gaussian_noise_stddev=1.0):
@@ -40,10 +42,7 @@ class SimulatedAnalogChannel:
         return received_signal
 
 
-# Quick and dirty test
-import matplotlib.pyplot as plt
-
-if __name__ == "__main__":
+def TEST_plot_noise_riding_on_signal():
     test_channel = SimulatedAnalogChannel(gaussian_noise_constant_gain=0.25)
 
     x = np.linspace(0, 2 * np.pi, 100)
@@ -59,3 +58,62 @@ if __name__ == "__main__":
     plt.legend()
     plt.xlabel("n (radians)")
     plt.show()
+
+
+def TEST_PlotFrequencyResponseOfActualSystemSignal():
+    # Frequency Response of Actual Signal:
+    test_channel = SimulatedAnalogChannel(gaussian_noise_constant_gain=0.1)
+    test_data = np.array(
+        [
+            [-1, 1],
+            [0, 0],
+            [0, 0],
+            [0, 0],
+            [1, -1],
+            [0, 0],
+            [0, 0],
+            [0, 0],
+            [1, 1],
+            [0, 0],
+            [0, 0],
+            [0, 0],
+            [1, -1],
+            [0, 0],
+            [0, 0],
+            [0, 0],
+            [1, -1],
+            [0, 0],
+            [0, 0],
+            [0, 0],
+            [1, 1],
+            [0, 0],
+            [0, 0],
+            [0, 0],
+        ]
+    )
+    test_transmit_signal = transmitter.Transmit(test_data)
+    test_receive_signal = test_channel.ReceivedSignal(test_transmit_signal)
+
+    transmited_response = np.fft.fft(test_transmit_signal)
+    transmited_response = np.fft.fftshift(transmited_response)
+    receive_response = np.fft.fft(test_receive_signal)
+    receive_response = np.fft.fftshift(receive_response)
+    freq = np.fft.fftshift(np.fft.fftfreq(receive_response.shape[-1]))
+    w = 2 * np.pi * freq
+
+    plt.plot(w, abs(receive_response), "-", label="received signal")
+    plt.plot(w, abs(transmited_response), ":", label="transmitted signal")
+    plt.ylabel("DFT Magnitude")
+    plt.xlabel("frequency (radians / sample)")
+    plt.title("Frequency Response")
+    plt.legend()
+    plt.show()
+
+
+# Quick and dirty test
+import matplotlib.pyplot as plt
+
+if __name__ == "__main__":
+    # TEST_plot_noise_riding_on_signal()
+
+    TEST_PlotFrequencyResponseOfActualSystemSignal()
