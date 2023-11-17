@@ -92,7 +92,6 @@ def UpSample20WithLPF(input_signals):
     # the cutoff values here are calculated for frequencies in terms of rads/sample, but
     # scipy uses 1/sample; correct for that--theres probably a more elegant solution.
     cutoff /= 2 * np.pi
-    print(cutoff)
     passband_desired_gain = upsample_n
     stopband_desired_gain = 0
     h_lpf_length = 71
