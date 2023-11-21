@@ -20,12 +20,6 @@ def FIRWindowMethod(n_taps, w_p_low, w_p_high, w_transition_width):
         ("kaiser", beta), n_taps, fftbins=False
     )
 
-    # Plot kaiser window
-    # i = np.arange(0, len(kaiser_window))
-    # plt.figure()
-    # plt.plot(i, kaiser_window)
-    # plt.show()
-
     # Make specified frequencies (rad/sample) to (1/sample)
     w_p_low = w_p_low / (2*np.pi)
     w_p_high = w_p_high / (2*np.pi)

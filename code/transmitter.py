@@ -1,5 +1,5 @@
 import numpy as np
-import upsampler
+import factor_sampler
 import convolution
 from scipy import signal
 
@@ -68,7 +68,7 @@ def GetFIR():
 # Step 4: shape the input signal using the raised cosine pulse
 def ApplyPulseShaping(input_signal):
     # first upsample the input_signal by a factor of 4
-    upsampled_input = upsampler.UpSample(input_signal, sampling_period)
+    upsampled_input = factor_sampler.UpSample(input_signal, sampling_period)
     fir = GetFIR()
     pulses_0 = convolution.Convolve_FiniteSequences(upsampled_input[0:, 0], fir)
     pulses_1 = convolution.Convolve_FiniteSequences(upsampled_input[0:, 1], fir)
@@ -82,7 +82,7 @@ def UpSample20WithLPF(input_signals):
 
     upsampled_signals = list()
     for input_signal in input_signals:
-        upsampled_signal = upsampler.UpSample(input_signal, upsample_n)
+        upsampled_signal = factor_sampler.UpSample(input_signal, upsample_n)
         upsampled_signals.append(upsampled_signal)
 
     upsampled_signals = np.array(upsampled_signals)
@@ -117,7 +117,7 @@ def UpSample20WithLPF(input_signals):
 
 
 def Transmit(input_signal):
-    carrier_frequency = 0.44 * np.pi  # radians/sample
+    carrier_frequency = 0.44 # radians/sample
 
     pulses, _ = UpSample20WithLPF(ApplyPulseShaping(input_signal))
 
@@ -379,8 +379,8 @@ def TEST_ApplyPulseShapingWithUpSampling():
     axis[0].set_title("b_1 Frequency Response")
 
     upsample_n = 20
-    pulses_up_0 = upsampler.UpSample(pulses[0], upsample_n)
-    pulses_up_1 = upsampler.UpSample(pulses[1], upsample_n)
+    pulses_up_0 = factor_sampler.UpSample(pulses[0], upsample_n)
+    pulses_up_1 = factor_sampler.UpSample(pulses[1], upsample_n)
     pulses = np.array([pulses_up_0, pulses_up_1])
 
     # PLOT UPSAMPLED FFT
@@ -447,16 +447,15 @@ def TEST_PlotTransmitSignal():
     n = np.arange(np.floor(len(transmit_signal) / 10))
     carrier_signal = np.cos(carrier_frequency * n) + np.sin(carrier_frequency * n)
 
-    plt.plot(
+    _, axis = plt.subplots(2)
+    axis[0].plot(
         n,
         transmit_signal[0 : n.shape[-1]],
         ",-",
         label="Transmitted Signal (With Modulation)",
     )
-    plt.plot(n, carrier_signal, ",-", label="Carrier Signal (No Modulation)")
-    plt.legend()
-
-    plt.xlabel("n")
+    axis[0].plot(n, carrier_signal, ",-", label="Carrier Signal (No Modulation)")
+    axis[1].plot(np.arange(len(transmit_signal)), transmit_signal, label="Transmitted Signal")
     plt.show()
 
 
@@ -465,9 +464,9 @@ if __name__ == "__main__":
     # TEST_PlotHDFT()
     # TEST_PlotImpulseResponseFunction()
     # TEST_PlotFIR()
-    # TEST_ApplyPulseShaping()
+    TEST_ApplyPulseShaping()
     # TEST_ApplyPulseShapingWithUpSampling()
-    TEST_PlotDFTFindUpSamplingLPF()
+    # TEST_PlotDFTFindUpSamplingLPF()
     # TEST_PlotUpSampledPulses()
-    # TEST_PlotTransmitSignal()
-    TEST_PlotDFTMModulationSignal()
+    TEST_PlotTransmitSignal()
+    # TEST_PlotDFTMModulationSignal()
